@@ -15,12 +15,18 @@ startCommand:
       credentialsPath:
         type: string
         description: Path to the stored credentials JSON file
+      port:
+        type: number
+        description: Port number for the SSE server (default 3000)
+        default: 3000
   commandFunction: |-
     (config) => ({
       command: 'node',
       args: ['dist/index.js'],
       env: {
         GMAIL_OAUTH_PATH: config.gcpOauthKeysPath,
-        GMAIL_CREDENTIALS_PATH: config.credentialsPath
-      }
+        GMAIL_CREDENTIALS_PATH: config.credentialsPath,
+        PORT: config.port || 3000
+      },
+      url: `http://localhost:${config.port || 3000}/sse`
     })

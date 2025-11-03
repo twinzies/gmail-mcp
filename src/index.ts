@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import {
     CallToolRequestSchema,
     ListToolsRequestSchema,
@@ -1199,8 +1199,74 @@ async function main() {
         }
     });
 
-    const transport = new StdioServerTransport();
-    await server.connect(transport);
+    // Create HTTP server for SSE
+    const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+
+    // Store active transports by session ID
+    const transports = new Map<string, SSEServerTransport>();
+
+    const httpServer = http.createServer(async (req, res) => {
+        // Enable CORS
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+        if (req.method === 'OPTIONS') {
+            res.writeHead(200);
+            res.end();
+            return;
+        }
+
+        const url = new URL(req.url!, `http://${req.headers.host}`);
+
+        if (req.method === 'GET' && url.pathname === '/sse') {
+            // Establish SSE connection
+            const transport = new SSEServerTransport('/message', res);
+
+            // Store transport for this session
+            transports.set(transport.sessionId, transport);
+
+            // Clean up when connection closes
+            transport.onclose = () => {
+                transports.delete(transport.sessionId);
+            };
+
+            // Connect automatically starts the transport
+            await server.connect(transport);
+        } else if (req.method === 'POST' && url.pathname === '/message') {
+            // Handle incoming messages
+            // Extract session ID from query parameters or headers
+            const sessionId = url.searchParams.get('sessionId');
+
+            if (!sessionId) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Missing sessionId' }));
+                return;
+            }
+
+            const transport = transports.get(sessionId);
+            if (!transport) {
+                res.writeHead(404, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Session not found' }));
+                return;
+            }
+
+            try {
+                await transport.handlePostMessage(req, res);
+            } catch (error: any) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: error.message }));
+            }
+        } else {
+            res.writeHead(404);
+            res.end('Not found');
+        }
+    });
+
+    httpServer.listen(PORT, () => {
+        console.error(`MCP Server listening on http://localhost:${PORT}`);
+        console.error(`SSE endpoint: http://localhost:${PORT}/sse`);
+    });
 }
 
 main().catch((error) => {
