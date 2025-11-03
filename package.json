@@ -16,7 +16,10 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "src",
+    "README.md",
+    "smithery.yaml",
+    "tsconfig.json"
   ],
   "keywords": [
     "gmail",
@@ -43,7 +46,7 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=18.0.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.4.0",

@@ -1200,7 +1200,7 @@ async function main() {
     });
 
     const transport = new StdioServerTransport();
-    server.connect(transport);
+    await server.connect(transport);
 }
 
 main().catch((error) => {
